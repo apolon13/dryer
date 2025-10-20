@@ -2,6 +2,10 @@ use anyhow::{anyhow, Error};
 use embedded_hal::digital::OutputPin;
 use crate::time::timer::SyncTimer;
 
+pub enum Err {
+    ContextCanceled,
+}
+
 pub trait TempSensor {
     fn read_celsius(&mut self) -> anyhow::Result<u16, Error>;
 }
@@ -51,13 +55,16 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
         Ok(())
     }
 
+    pub fn stop(&mut self) -> anyhow::Result<(), Error> {
+        self.power_off()
+    }
+
     pub fn start(
         &mut self,
         timer: SyncTimer
     ) -> Result<(), Error> {
         let mut failed_requests = 0;
         timer.next_sec(|| {
-            println!("tick");
             if failed_requests > 3 {
                 Err(anyhow!("too many failed temperature requests"))?
             }

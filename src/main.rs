@@ -6,7 +6,7 @@ mod time;
 mod wifi;
 mod dryer;
 
-use std::sync::{mpsc};
+use std::sync::{mpmc, mpsc};
 use std::thread;
 use std::time::Duration;
 use anyhow::Result;
@@ -41,6 +41,7 @@ fn main() -> Result<()> {
 fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
     let (timers_tx, timers_rx) = mpsc::channel::<SyncTimer>();
+    let (cancel_tx, cancel_rx) = spmc::channel::<bool>();
 
     /*
     //Init WI-FI connection
@@ -58,10 +59,8 @@ fn start() -> Result<()> {
     let handles = vec![
         thread::spawn(move || {
             loop {
-                let (tx, rx) = mpsc::channel::<bool>();
-                let timer = SyncTimer::new(rx, Duration::from_secs(5));
+                let timer = SyncTimer::new(cancel_rx.clone(), Duration::from_secs(5));
                 timers_tx.send(timer).unwrap();
-                println!("send");
                 thread::sleep(Duration::from_secs(10));
             }
         }),
@@ -94,12 +93,10 @@ fn start() -> Result<()> {
                 fan
             );
             for timer in timers_rx {
-                println!("start");
                 dryer.start(timer).unwrap();
-                println!("done");
+                dryer.stop().unwrap();
             }
         }),
-
     ];
 
     for handle in handles {

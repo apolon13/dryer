@@ -1,7 +1,7 @@
-use std::ops::{Add, Sub};
-use std::sync::mpsc::Receiver;
+use std::ops::{Sub};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use spmc::Receiver;
 
 pub struct SyncTimer {
     done_ch: Receiver<bool>,

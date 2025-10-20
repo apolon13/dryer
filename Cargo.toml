@@ -28,6 +28,7 @@ onewire = "0.4.0"
 dotenv_codegen = "0.15"
 embedded-hal = "1.0.0"
 esp-idf-hal = "0.45.2"
+spmc = "0.3.0"
 
 [build-dependencies]
 embuild  = "=0.33.0"
