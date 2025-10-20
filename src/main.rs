@@ -1,4 +1,5 @@
 #![feature(mpmc_channel)]
+#![feature(unboxed_closures)]
 
 #[macro_use]
 mod schedule;
@@ -62,7 +63,9 @@ fn start() -> Result<()> {
                 dotenv!("MQTT_PASSWORD").to_string(),
                 dotenv!("MQTT_URL").to_string(),
             ));
-            mqtt.wait_message().unwrap();
+            mqtt.wait_message(|msg| {
+                println!("{:?}", msg)
+            }).unwrap();
         }),
         thread::spawn(move || {
             //Init fan
