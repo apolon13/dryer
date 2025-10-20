@@ -6,7 +6,7 @@ use embedded_hal::digital::OutputPin;
 pub mod sensor;
 pub mod fan;
 
-pub trait TemperatureReader {
+pub trait TempSensor {
     fn read_celsius(&mut self) -> Result<u16, Error>;
 }
 
@@ -21,16 +21,16 @@ pub trait FanSpeedRegulator {
     fn speed(&mut self, mode: FanMode) -> Result<(), Error>;
 }
 
-pub struct Dryer<P: OutputPin, S: TemperatureReader, F: FanSpeedRegulator> {
+pub struct Dryer<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> {
     power: P,
     sensor: S,
     fan: F,
     target_temperature: u8
 }
 
-impl<P: OutputPin, S: TemperatureReader, F: FanSpeedRegulator> Dryer<P, S, F> {
-    pub fn new(power: P, target_temperature: u8, sensor: S, fan_reg: F) -> Self {
-        Dryer { power, target_temperature, sensor, fan: fan_reg }
+impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Dryer<P, S, F> {
+    pub fn new(power: P, target_temperature: u8, sensor: S, fan: F) -> Self {
+        Dryer { power, target_temperature, sensor, fan }
     }
 
     fn heat(&mut self) -> Result<(), Error> {

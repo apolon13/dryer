@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Error};
 use esp_idf_svc::hal::delay::Ets;
 use onewire::{DeviceSearch, OneWire, OpenDrainOutput, DS18B20};
-use crate::dryer::TemperatureReader;
+use crate::dryer::TempSensor;
 
 pub struct DS18B20Sensor<ODO: OpenDrainOutput> {
     device: DS18B20,
@@ -29,7 +29,7 @@ impl<ODO: OpenDrainOutput> DS18B20Sensor<ODO> {
     }
 }
 
-impl<ODO: OpenDrainOutput> TemperatureReader for DS18B20Sensor<ODO> {
+impl<ODO: OpenDrainOutput> TempSensor for DS18B20Sensor<ODO> {
     fn read_celsius(&mut self) -> Result<u16, Error> {
         let mut delay = Ets;
         let resolution = self

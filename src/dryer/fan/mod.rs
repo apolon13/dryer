@@ -18,7 +18,7 @@ impl<'a> Fan<'a> {
         let current = self.pwm.get_duty();
         match direction {
             FanMode::Middle => {
-                max / 2
+                (max as f64 * (1.0 - 30.0 / 100.0)) as u32
             },
             FanMode::Max => {
                 cmp::min(max, current.saturating_add(self.duty_step))
