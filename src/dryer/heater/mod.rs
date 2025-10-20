@@ -1,7 +1,6 @@
-use std::thread;
-use std::time::Duration;
 use anyhow::{anyhow, Error};
 use embedded_hal::digital::OutputPin;
+use crate::time::timer::SyncTimer;
 
 pub trait TempSensor {
     fn read_celsius(&mut self) -> anyhow::Result<u16, Error>;
@@ -11,7 +10,7 @@ pub trait TempSensor {
 pub enum FanMode {
     Max,
     Middle,
-    Min
+    Off
 }
 
 pub trait FanSpeedRegulator {
@@ -32,7 +31,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     fn heat(&mut self) -> anyhow::Result<(), Error> {
         self.power.set_high().map_err(|e| {anyhow!("power on: {:?}", e)})?;
-        self.fan.speed(FanMode::Min)?;
+        self.fan.speed(FanMode::Off)?;
         Ok(())
     }
 
@@ -42,16 +41,23 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
     }
 
     fn cooling(&mut self) -> anyhow::Result<(), Error> {
+        self.power_off()?;
+        self.fan.speed(FanMode::Off)?;
+        Ok(())
+    }
+
+    fn power_off(&mut self) -> anyhow::Result<(), Error> {
         self.power.set_low().map_err(|e| {anyhow!("power off: {:?}", e)})?;
-        self.fan.speed(FanMode::Min)?;
         Ok(())
     }
 
     pub fn start(
         &mut self,
-    ) -> anyhow::Result<(), Error> {
+        timer: SyncTimer
+    ) -> Result<(), Error> {
         let mut failed_requests = 0;
-        loop {
+        timer.next_sec(|| {
+            println!("tick");
             if failed_requests > 3 {
                 Err(anyhow!("too many failed temperature requests"))?
             }
@@ -74,7 +80,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                     failed_requests += 1;
                 }
             }
-            thread::sleep(Duration::from_secs(1));
-        }
+            Ok(())
+        })
     }
 }

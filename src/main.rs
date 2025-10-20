@@ -1,9 +1,14 @@
+#![feature(mpmc_channel)]
+
 #[macro_use]
 mod schedule;
 mod time;
 mod wifi;
 mod dryer;
 
+use std::sync::{mpsc};
+use std::thread;
+use std::time::Duration;
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::gpio::PinDriver;
@@ -22,6 +27,7 @@ use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
 use crate::dryer::fan::Fan;
 use crate::dryer::heater::Heater;
+use crate::time::timer::SyncTimer;
 
 fn main() -> Result<()> {
     match start() {
@@ -34,20 +40,7 @@ fn main() -> Result<()> {
 }
 fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
-
-    //Init fan
-    let timer_driver = LedcTimerDriver::new(
-        peripherals.ledc.timer0,
-        &TimerConfig::default()
-            .frequency(Hertz::from(20_000u32))
-            .resolution(Bits10),
-    )?;
-    let pwm = LedcDriver::new(
-        peripherals.ledc.channel0,
-        timer_driver,
-        peripherals.pins.gpio4,
-    )?;
-    let fan = Fan::new(pwm);
+    let (timers_tx, timers_rx) = mpsc::channel::<SyncTimer>();
 
     /*
     //Init WI-FI connection
@@ -61,20 +54,56 @@ fn start() -> Result<()> {
     let mut wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), None)?;
     connection.open(&mut wifi, sys_loop, AuthMethod::WPA2Personal)?;
     */
-    
-    //Init temperature sensor
-    let mut pin_driver = PinDriver::output(peripherals.pins.gpio6)?.into_input_output()?;
-    let wire = OneWire::new(&mut pin_driver, false);
-    let temp_sensor = DS18B20Sensor::new(wire, 100)?;
 
-    //Init heater
-    let power = PinDriver::output(peripherals.pins.gpio2)?.into_output()?;
-    let mut dryer = Heater::new(
-        power,
-        dotenv!("TARGET_TEMPERATURE").parse::<u8>()?,
-        temp_sensor,
-        fan
-    );
-    dryer.start()?;
+    let handles = vec![
+        thread::spawn(move || {
+            loop {
+                let (tx, rx) = mpsc::channel::<bool>();
+                let timer = SyncTimer::new(rx, Duration::from_secs(5));
+                timers_tx.send(timer).unwrap();
+                println!("send");
+                thread::sleep(Duration::from_secs(10));
+            }
+        }),
+        thread::spawn(move || {
+            //Init fan
+            let timer_driver = LedcTimerDriver::new(
+                peripherals.ledc.timer0,
+                &TimerConfig::default()
+                    .frequency(Hertz::from(20_000u32))
+                    .resolution(Bits10),
+            ).unwrap();
+            let pwm = LedcDriver::new(
+                peripherals.ledc.channel0,
+                timer_driver,
+                peripherals.pins.gpio4,
+            ).unwrap();
+            let fan = Fan::new(pwm);
+
+            //Init temperature sensor
+            let mut pin_driver = PinDriver::output(peripherals.pins.gpio6).unwrap().into_input_output().unwrap();
+            let wire = OneWire::new(&mut pin_driver, false);
+            let temp_sensor = DS18B20Sensor::new(wire, 100).unwrap();
+
+            //Init heater
+            let power = PinDriver::output(peripherals.pins.gpio2).unwrap().into_output().unwrap();
+            let mut dryer = Heater::new(
+                power,
+                dotenv!("TARGET_TEMPERATURE").parse::<u8>().unwrap(),
+                temp_sensor,
+                fan
+            );
+            for timer in timers_rx {
+                println!("start");
+                dryer.start(timer).unwrap();
+                println!("done");
+            }
+        }),
+
+    ];
+
+    for handle in handles {
+        handle.join().map_err(|e| anyhow::anyhow!("thread panicked: {:?}", e))?;
+    }
     Ok(())
 }

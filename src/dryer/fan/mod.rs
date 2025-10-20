@@ -23,7 +23,7 @@ impl<'a> Fan<'a> {
             FanMode::Max => {
                 cmp::min(max, current.saturating_add(self.duty_step))
             }
-            FanMode::Min => {
+            FanMode::Off => {
                 cmp::max(0, current.saturating_sub(self.duty_step))
             }
         }
