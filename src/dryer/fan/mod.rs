@@ -1,7 +1,7 @@
 use std::cmp;
 use anyhow::Error;
 use esp_idf_hal::ledc::LedcDriver;
-use crate::dryer::{FanMode, FanSpeedRegulator};
+use crate::dryer::heater::{FanMode, FanSpeedRegulator};
 
 pub struct Fan<'a> {
     pwm: LedcDriver<'a>,
@@ -9,7 +9,7 @@ pub struct Fan<'a> {
 }
 
 impl<'a> Fan<'a> {
-    pub(crate) fn new(pwm: LedcDriver<'a>) -> Self {
+    pub fn new(pwm: LedcDriver<'a>) -> Self {
         Fan { pwm, duty_step: 200 }
     }
 

@@ -16,12 +16,12 @@ use crate::wifi::{Connection, Credentials};
 use dotenv_codegen::dotenv;
 use embedded_svc::wifi::AuthMethod;
 use esp_idf_hal::delay::Ets;
-use dryer::Dryer;
 use esp_idf_hal::ledc::{LedcChannel, LedcDriver, LedcTimerDriver, Resolution};
 use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
 use crate::dryer::fan::Fan;
+use crate::dryer::heater::Heater;
 
 fn main() -> Result<()> {
     match start() {
@@ -67,9 +67,9 @@ fn start() -> Result<()> {
     let wire = OneWire::new(&mut pin_driver, false);
     let temp_sensor = DS18B20Sensor::new(wire, 100)?;
 
-    //Init dryer
+    //Init heater
     let power = PinDriver::output(peripherals.pins.gpio2)?.into_output()?;
-    let mut dryer = Dryer::new(
+    let mut dryer = Heater::new(
         power,
         dotenv!("TARGET_TEMPERATURE").parse::<u8>()?,
         temp_sensor,

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Error};
 use esp_idf_svc::hal::delay::Ets;
 use onewire::{DeviceSearch, OneWire, OpenDrainOutput, DS18B20};
-use crate::dryer::TempSensor;
+use crate::dryer::heater::TempSensor;
 
 pub struct DS18B20Sensor<ODO: OpenDrainOutput> {
     device: DS18B20,
