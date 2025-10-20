@@ -5,10 +5,10 @@ mod schedule;
 mod time;
 mod wifi;
 mod dryer;
+mod mqtt;
 
-use std::sync::{mpmc, mpsc};
+use std::sync::{mpsc};
 use std::thread;
-use std::time::Duration;
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::gpio::PinDriver;
@@ -20,13 +20,13 @@ use dryer::sensor::temperature::DS18B20Sensor;
 use crate::wifi::{Connection, Credentials};
 use dotenv_codegen::dotenv;
 use embedded_svc::wifi::AuthMethod;
-use esp_idf_hal::delay::Ets;
-use esp_idf_hal::ledc::{LedcChannel, LedcDriver, LedcTimerDriver, Resolution};
+use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
 use crate::dryer::fan::Fan;
 use crate::dryer::heater::Heater;
+use crate::mqtt::Mqtt;
 use crate::time::timer::SyncTimer;
 
 fn main() -> Result<()> {
@@ -42,9 +42,7 @@ fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
     let (timers_tx, timers_rx) = mpsc::channel::<SyncTimer>();
     let (cancel_tx, cancel_rx) = spmc::channel::<bool>();
-
-    /*
-    //Init WI-FI connection
+    // Init WI-FI
     let sys_loop = EspSystemEventLoop::take()?;
     let connection = Connection::new(
         Credentials::new(
@@ -54,15 +52,17 @@ fn start() -> Result<()> {
     );
     let mut wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), None)?;
     connection.open(&mut wifi, sys_loop, AuthMethod::WPA2Personal)?;
-    */
 
     let handles = vec![
         thread::spawn(move || {
-            loop {
-                let timer = SyncTimer::new(cancel_rx.clone(), Duration::from_secs(5));
-                timers_tx.send(timer).unwrap();
-                thread::sleep(Duration::from_secs(10));
-            }
+            // Init MQTT
+            let mqtt = Mqtt::new(mqtt::Credentials::new(
+                dotenv!("MQTT_CLIENT_ID").to_string(),
+                dotenv!("MQTT_USERNAME").to_string(),
+                dotenv!("MQTT_PASSWORD").to_string(),
+                dotenv!("MQTT_URL").to_string(),
+            ));
+            mqtt.wait_message().unwrap();
         }),
         thread::spawn(move || {
             //Init fan
