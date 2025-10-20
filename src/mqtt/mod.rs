@@ -1,14 +1,21 @@
-use std::sync::mpsc;
+use std::cmp::PartialEq;
+use std::collections::{HashMap, HashSet};
 use anyhow::anyhow;
 use embedded_svc::mqtt::client::{EventPayload, QoS};
 use esp_idf_svc::mqtt::client::{EspMqttClient, MqttClientConfiguration};
+use serde::Deserialize;
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-use serde::Deserialize;
+
+#[derive(Debug)]
+pub enum MessageType {
+    Command(Command),
+}
 
 #[derive(Debug, Deserialize)]
-pub struct Message {
-    command: String,
+pub struct Command {
+    name: String,
 }
 
 pub struct Credentials {
@@ -38,8 +45,8 @@ impl Mqtt {
         Mqtt { credentials }
     }
 
-    pub fn wait_message<F: FnMut(Message)>(&self, mut cb: F) -> Result<(), anyhow::Error> {
-        let (messages_tx, messages_rx) = mpsc::channel::<Message>();
+    pub fn wait_message<F: FnMut(MessageType)>(&self, mut cb: F) -> Result<(), anyhow::Error> {
+        let (messages_tx, messages_rx) = mpsc::channel::<MessageType>();
         let mut client = EspMqttClient::new_cb(
             self.credentials.url.as_str(),
             &MqttClientConfiguration {
@@ -56,35 +63,50 @@ impl Mqtt {
                     data,
                     details,
                 } => {
-                    let val: Message = serde_json::from_slice(data).unwrap();
-                    messages_tx.send(val).unwrap();
+                    match topic {
+                        Some("/commands") => {
+                            let val: Command = serde_json::from_slice(data).unwrap();
+                            messages_tx.send(MessageType::Command(val)).unwrap();
+                        }
+                        c => {
+                            println!("{:?}", c);
+                        }
+                    }
                 }
                 _ => {}
             },
         )?;
-        self.wait_subscribe(&mut client)?;
+        self.wait_subscription(|| match client.subscribe("commands", QoS::AtMostOnce) {
+            Ok(_) => Ok(()),
+            Err(error) => Err(anyhow!("subscribe to messages: {:?}", error)),
+        })?;
         for msg in messages_rx {
-            cb(msg);
+            cb(msg)
         }
         Ok(())
     }
 
-    fn wait_subscribe(&self, client: &mut EspMqttClient) -> Result<(), anyhow::Error> {
+    fn wait_subscription<F: FnMut() -> Result<(), anyhow::Error>>(
+        &self,
+        mut sb: F,
+    ) -> Result<(), anyhow::Error> {
         let mut subscribe_attempt = 0;
         let mut subscribed = false;
         loop {
             if !subscribed {
-                if subscribe_attempt < 50 {
-                    match client.subscribe("messages", QoS::AtMostOnce) {
-                        Ok(_) => subscribed = true,
-                        Err(_) => subscribe_attempt += 1,
-                    };
-                } else {
-                    return Err(anyhow!("failed to subscribe to topic"));
-                }
+                match sb() {
+                    Ok(_) => subscribed = true,
+                    Err(_) => {
+                        if subscribe_attempt < 50 {
+                            subscribe_attempt += 1;
+                        } else {
+                            return Err(anyhow!("failed to subscribe to topic"));
+                        }
+                    }
+                };
                 thread::sleep(Duration::from_millis(50));
             } else {
-                return Ok(())
+                return Ok(());
             }
         }
     }
