@@ -8,7 +8,7 @@ mod wifi;
 mod dryer;
 mod mqtt;
 
-use std::sync::{mpsc};
+use std::sync::{mpmc, mpsc};
 use std::thread;
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -27,7 +27,7 @@ use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
 use crate::dryer::fan::Fan;
 use crate::dryer::heater::Heater;
-use crate::mqtt::Mqtt;
+use crate::mqtt::{Mqtt, Command};
 use crate::time::timer::SyncTimer;
 
 fn main() -> Result<()> {
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
 fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
     let (timers_tx, timers_rx) = mpsc::channel::<SyncTimer>();
-    let (cancel_tx, cancel_rx) = spmc::channel::<bool>();
+    let (cancel_tx, cancel_rx) = mpmc::sync_channel(1);
     // Init WI-FI
     let sys_loop = EspSystemEventLoop::take()?;
     let connection = Connection::new(
@@ -64,7 +64,15 @@ fn start() -> Result<()> {
                 dotenv!("MQTT_URL").to_string(),
             ));
             mqtt.wait_message(|msg| {
-                println!("{:?}", msg)
+                match msg {
+                    Command::Start(d) => {
+                        cancel_tx.send(true).unwrap();
+                        timers_tx.send(SyncTimer::new(cancel_rx.clone(), d)).unwrap();
+                    },
+                    Command::Stop => {
+                        cancel_tx.send(true).unwrap();
+                    },
+                }
             }).unwrap();
         }),
         thread::spawn(move || {

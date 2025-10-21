@@ -1,5 +1,3 @@
-use std::cmp::PartialEq;
-use std::collections::{HashMap, HashSet};
 use anyhow::anyhow;
 use embedded_svc::mqtt::client::{EventPayload, QoS};
 use esp_idf_svc::mqtt::client::{EspMqttClient, MqttClientConfiguration};
@@ -9,13 +7,14 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Debug)]
-pub enum MessageType {
-    Command(Command),
+pub enum Command {
+    Start(Duration),
+    Stop,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Command {
-    name: String,
+struct StartOptions {
+    duration: u64,
 }
 
 pub struct Credentials {
@@ -45,8 +44,8 @@ impl Mqtt {
         Mqtt { credentials }
     }
 
-    pub fn wait_message<F: FnMut(MessageType)>(&self, mut cb: F) -> Result<(), anyhow::Error> {
-        let (messages_tx, messages_rx) = mpsc::channel::<MessageType>();
+    pub fn wait_message<F: FnMut(Command)>(&self, mut cb: F) -> Result<(), anyhow::Error> {
+        let (messages_tx, messages_rx) = mpsc::channel::<Command>();
         let mut client = EspMqttClient::new_cb(
             self.credentials.url.as_str(),
             &MqttClientConfiguration {
@@ -64,10 +63,13 @@ impl Mqtt {
                     details,
                 } => {
                     match topic {
-                        Some("/commands") => {
-                            let val: Command = serde_json::from_slice(data).unwrap();
-                            messages_tx.send(MessageType::Command(val)).unwrap();
-                        }
+                        Some("/start") => {
+                            let val: StartOptions = serde_json::from_slice(data).unwrap();
+                            messages_tx.send(Command::Start(Duration::from_secs(val.duration))).unwrap();
+                        },
+                        Some("/stop") => {
+                            messages_tx.send(Command::Stop).unwrap();
+                        },
                         c => {
                             println!("{:?}", c);
                         }
@@ -76,7 +78,7 @@ impl Mqtt {
                 _ => {}
             },
         )?;
-        self.wait_subscription(|| match client.subscribe("commands", QoS::AtMostOnce) {
+        self.wait_subscription(|| match client.subscribe("start", QoS::AtMostOnce) {
             Ok(_) => Ok(()),
             Err(error) => Err(anyhow!("subscribe to messages: {:?}", error)),
         })?;
