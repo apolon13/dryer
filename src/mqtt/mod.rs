@@ -50,7 +50,6 @@ impl Mqtt<'_> {
                 client_id: Option::from(credentials.client_id.as_str()),
                 username: Option::from(credentials.username.as_str()),
                 password: Option::from(credentials.password.as_str()),
-                keep_alive_interval: Option::from(Duration::from_secs(30)),
                 ..MqttClientConfiguration::default()
             },
             move |message_event| match message_event.payload() {

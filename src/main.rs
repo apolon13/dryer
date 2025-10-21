@@ -8,9 +8,8 @@ mod dryer;
 mod mqtt;
 
 use std::sync::{mpmc, mpsc, Arc};
-use std::sync::atomic::AtomicBool;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::gpio::PinDriver;
