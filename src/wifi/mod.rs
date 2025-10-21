@@ -25,48 +25,61 @@ impl Credentials {
     }
 }
 
-pub struct Connection {
-    credentials: Credentials
+pub struct Connection<'a> {
+    credentials: Credentials,
+    wifi: EspWifi<'a>,
+    event_loop: EspSystemEventLoop,
 }
 
-impl Connection {
-    pub fn new(credentials: Credentials) -> Self {
-        Connection { credentials}
+impl<'a> Connection<'a> {
+    pub fn new(
+        credentials: Credentials,
+        wifi: EspWifi<'a>,
+        event_loop: EspSystemEventLoop,
+    ) -> Self {
+        Connection {
+            credentials,
+            wifi,
+            event_loop,
+        }
     }
 
-    pub fn open(&self, wifi: &mut EspWifi, event_loop: EspSystemEventLoop, auth_method: AuthMethod) -> Result<(), anyhow::Error> {
-        wifi.start()?;
-        wifi.set_configuration(&Configuration::Client(ClientConfiguration {
-                ssid: self.credentials.ssid.parse().unwrap(),
-                password: self.credentials.password.parse().unwrap(),
+    pub fn open(&mut self, auth_method: AuthMethod) -> Result<(), anyhow::Error> {
+        let Credentials { ssid, password } = &self.credentials;
+        self.wifi.start()?;
+        self.wifi
+            .set_configuration(&Configuration::Client(ClientConfiguration {
+                ssid: ssid.parse().unwrap(),
+                password: password.parse().unwrap(),
                 channel: None,
                 auth_method,
                 ..Default::default()
             }))?;
-        self.wait_connection(wifi, event_loop)?;
+        self.connect()?;
         Ok(())
     }
 
-    fn wait_connection(&self, wifi: &mut EspWifi, event_loop: EspSystemEventLoop) -> Result<(), anyhow::Error> {
-        wifi.connect()?;
-        let wait = esp_idf_svc::eventloop::Wait::new::<IpEvent>(&event_loop)?;
+    fn connect(&mut self) -> Result<(), anyhow::Error> {
+        self.wifi.connect()?;
+        let wait = esp_idf_svc::eventloop::Wait::new::<IpEvent>(&self.event_loop)?;
         wait.wait_while(
-            || wifi.is_up().map(|s| !s),
+            || self.wifi.is_up().map(|s| !s),
             Option::from(Duration::from_secs(15)),
         )?;
         Ok(())
     }
 
-    pub fn open_with_autoconfig(&self, wifi: &mut EspWifi, event_loop: EspSystemEventLoop) -> Result<(), anyhow::Error> {
+    pub fn init_with_autoconfig(&mut self) -> Result<(), anyhow::Error> {
         let Credentials { ssid, password } = &self.credentials;
-        wifi
+        self.wifi
             .set_configuration(&Configuration::Client(ClientConfiguration {
                 ..Default::default()
             }))?;
-        wifi.start()?;
-        let points = wifi.scan()?;
+        self.wifi.start()?;
+        let points = self.wifi.scan()?;
         let access_point = self.access_point_info(points)?;
-        wifi.set_configuration(&Configuration::Client(ClientConfiguration {
+        self.wifi
+            .set_configuration(&Configuration::Client(ClientConfiguration {
                 ssid: ssid.parse().unwrap(),
                 password: password.parse().unwrap(),
                 channel: Option::from(access_point.channel),
@@ -76,7 +89,7 @@ impl Connection {
                 },
                 ..Default::default()
             }))?;
-        self.wait_connection(wifi, event_loop)?;
+        self.connect()?;
         Ok(())
     }
 

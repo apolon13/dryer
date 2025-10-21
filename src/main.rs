@@ -1,5 +1,4 @@
 #![feature(mpmc_channel)]
-#![feature(unboxed_closures)]
 
 #[macro_use]
 mod schedule;
@@ -39,40 +38,46 @@ fn main() -> Result<()> {
         }
     }
 }
+
 fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
-    let (timers_tx, timers_rx) = mpsc::channel::<SyncTimer>();
-    let (cancel_tx, cancel_rx) = mpmc::sync_channel(1);
+    let (timers_tx, timers_rx) = mpsc::channel();
+    let (cancel_tx, cancel_rx) = mpmc::channel();
     // Init WI-FI
     let sys_loop = EspSystemEventLoop::take()?;
-    let connection = Connection::new(
+    let wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), None)?;
+    let mut connection = Connection::new(
         Credentials::new(
             dotenv!("SSID").to_string(),
             dotenv!("PASS").to_string(),
         ),
+        wifi,
+        sys_loop,
     );
-    let mut wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), None)?;
-    connection.open(&mut wifi, sys_loop, AuthMethod::WPA2Personal)?;
+    connection.open(AuthMethod::WPA2Personal)?;
 
     let handles = vec![
         thread::spawn(move || {
             // Init MQTT
-            let mqtt = Mqtt::new(mqtt::Credentials::new(
+            let mut mqtt = Mqtt::new(mqtt::Credentials::new(
                 dotenv!("MQTT_CLIENT_ID").to_string(),
                 dotenv!("MQTT_USERNAME").to_string(),
                 dotenv!("MQTT_PASSWORD").to_string(),
                 dotenv!("MQTT_URL").to_string(),
-            ));
-            mqtt.wait_message(|msg| {
-                match msg {
-                    Command::Start(d) => {
-                        cancel_tx.send(true).unwrap();
-                        timers_tx.send(SyncTimer::new(cancel_rx.clone(), d)).unwrap();
-                    },
-                    Command::Stop => {
-                        cancel_tx.send(true).unwrap();
-                    },
-                }
+            )).unwrap();
+            mqtt.wait(|mqtt: &mut Mqtt| {
+                mqtt.on_command(|msg| {
+                    match msg {
+                        Command::Start(d) => {
+                            Ok(timers_tx.send(SyncTimer::new(cancel_rx.clone(), d))?)
+                        },
+                        Command::Stop => {
+                            Ok(cancel_tx.send(true)?)
+                        },
+                    }
+                })?;
+                mqtt.send_message()?;
+                Ok(())
             }).unwrap();
         }),
         thread::spawn(move || {
