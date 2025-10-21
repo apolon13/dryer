@@ -7,8 +7,10 @@ mod wifi;
 mod dryer;
 mod mqtt;
 
-use std::sync::{mpmc, mpsc};
+use std::sync::{mpmc, mpsc, Arc};
+use std::sync::atomic::AtomicBool;
 use std::thread;
+use std::time::{Duration, Instant};
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::gpio::PinDriver;
@@ -26,7 +28,9 @@ use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
 use crate::dryer::fan::Fan;
 use crate::dryer::heater::Heater;
+use crate::dryer::{State, StateMessage};
 use crate::mqtt::{Mqtt, Command};
+use crate::time::limit::OnceIn;
 use crate::time::timer::SyncTimer;
 
 fn main() -> Result<()> {
@@ -43,6 +47,8 @@ fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
     let (timers_tx, timers_rx) = mpsc::channel();
     let (cancel_tx, cancel_rx) = mpmc::channel();
+    let dryer_state = Arc::new(State::new());
+    let state_copy = dryer_state.clone();
     // Init WI-FI
     let sys_loop = EspSystemEventLoop::take()?;
     let wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), None)?;
@@ -58,6 +64,7 @@ fn start() -> Result<()> {
 
     let handles = vec![
         thread::spawn(move || {
+            let mut limiter = OnceIn::new(Duration::from_secs(300));
             // Init MQTT
             let mut mqtt = Mqtt::new(mqtt::Credentials::new(
                 dotenv!("MQTT_CLIENT_ID").to_string(),
@@ -76,7 +83,9 @@ fn start() -> Result<()> {
                         },
                     }
                 })?;
-                mqtt.send_message()?;
+                limiter.if_allow(|| {
+                    mqtt.send_message(StateMessage::new(state_copy.active()))
+                })?;
                 Ok(())
             }).unwrap();
         }),
@@ -109,7 +118,9 @@ fn start() -> Result<()> {
                 fan
             );
             for timer in timers_rx {
+                dryer_state.activate();
                 dryer.start(timer).unwrap();
+                dryer_state.inactivate();
                 dryer.stop().unwrap();
             }
         }),

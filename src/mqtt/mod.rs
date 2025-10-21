@@ -96,15 +96,21 @@ impl Mqtt<'_> {
         &self,
         mut cb: F,
     ) -> Result<(), anyhow::Error> {
-        match self.messages_rx.recv() {
+        match self.messages_rx.try_recv() {
             Ok(cmd) => cb(cmd)?,
             _ => {}
         };
         Ok(())
     }
 
-    pub fn send_message(&mut self) -> Result<(), anyhow::Error> {
-        self.client.publish("/state/status", QoS::AtLeastOnce, false, "true".as_bytes())?;
+    pub fn send_message<M: MqttMessage>(&mut self, m: M) -> Result<(), anyhow::Error> {
+        self.client.publish(m.topic(), QoS::AtLeastOnce, false, m.to_bytes())?;
         Ok(())
     }
+}
+
+pub trait MqttMessage {
+    fn to_bytes(&self) -> &[u8];
+
+    fn topic(&self) -> &str;
 }
