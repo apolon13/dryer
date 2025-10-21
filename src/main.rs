@@ -72,19 +72,24 @@ fn start() -> Result<()> {
                 dotenv!("MQTT_PASSWORD").to_string(),
                 dotenv!("MQTT_URL").to_string(),
             )).unwrap();
-            mqtt.wait(|mqtt: &mut Mqtt| {
-                mqtt.on_command(|msg| {
+            mqtt.wait(|mqtt| {
+                let send_state = |mqtt: &mut Mqtt, state: bool| -> Result<(), anyhow::Error>{
+                    mqtt.send_message(StateMessage::new(state))
+                };
+                mqtt.on_command(|mqtt, msg| {
                     match msg {
                         Command::Start(d) => {
+                            send_state(mqtt, true)?;
                             Ok(timers_tx.send(SyncTimer::new(cancel_rx.clone(), d))?)
                         },
                         Command::Stop => {
+                            send_state(mqtt, false)?;
                             Ok(cancel_tx.send(true)?)
                         },
                     }
                 })?;
                 limiter.if_allow(|| {
-                    mqtt.send_message(StateMessage::new(state_copy.active()))
+                    send_state(mqtt, state_copy.active())
                 })?;
                 Ok(())
             }).unwrap();

@@ -82,7 +82,7 @@ impl Mqtt<'_> {
         })
     }
 
-    pub fn wait<F: FnMut(&mut Mqtt) -> Result<(), anyhow::Error>>(
+    pub fn wait<F: FnMut(&mut Self) -> Result<(), anyhow::Error>>(
         &mut self,
         mut cb: F,
     ) -> Result<(), anyhow::Error> {
@@ -92,12 +92,12 @@ impl Mqtt<'_> {
         }
     }
 
-    pub fn on_command<F: FnMut(Command) -> Result<(), anyhow::Error>>(
-        &self,
+    pub fn on_command<F: FnMut(&mut Self, Command) -> Result<(), anyhow::Error>>(
+        &mut self,
         mut cb: F,
     ) -> Result<(), anyhow::Error> {
         match self.messages_rx.try_recv() {
-            Ok(cmd) => cb(cmd)?,
+            Ok(cmd) => cb(self, cmd)?,
             _ => {}
         };
         Ok(())
