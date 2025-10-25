@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Error};
+use crossbeam_channel::Sender;
 use embedded_hal::digital::OutputPin;
+use crate::dryer::State;
 use crate::time::timer::SyncTimer;
 
 pub enum Err {
@@ -61,11 +63,12 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     pub fn start(
         &mut self,
-        timer: SyncTimer
+        timer: SyncTimer,
+        state: Sender<State>
     ) -> Result<(), Error> {
         let mut failed_requests = 0;
         timer.next_sec(|| {
-            if failed_requests > 3 {
+            if failed_requests > 10 {
                 Err(anyhow!("too many failed temperature requests"))?
             }
             match self.sensor.read_celsius() {
@@ -82,8 +85,10 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                     if value > target_with_gap {
                         self.cooling()?;
                     }
+                    state.try_send(State::new(true, value))?;
                 }
-                _=> {
+                Err(e) => {
+                    println!("{}", e);
                     failed_requests += 1;
                 }
             }

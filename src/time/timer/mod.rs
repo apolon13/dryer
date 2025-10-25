@@ -1,7 +1,7 @@
 use std::ops::{Sub};
-use std::sync::mpmc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use crossbeam_channel::Receiver;
 
 pub struct SyncTimer {
     done_ch: Receiver<bool>,

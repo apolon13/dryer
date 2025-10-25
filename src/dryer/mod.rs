@@ -1,53 +1,47 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering::{Relaxed, Release};
+use serde::{Serialize};
 use crate::mqtt::MqttMessage;
 
 pub mod sensor;
 pub mod fan;
 pub mod heater;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Copy, Clone)]
 pub struct State {
-    val: AtomicBool,
+    active: bool,
+    temp: u16
 }
 
 impl State {
-    pub fn new() -> Self {
-        Self { val: AtomicBool::new(false) }
+    pub fn new(active: bool, temp: u16) -> Self {
+        Self { active, temp }
     }
 
-    pub fn activate(&self) {
-        self.val.store(true, Relaxed);
+    pub fn active() -> Self {
+        Self { active: true, temp: 0 }
     }
 
-    pub fn inactivate(&self) {
-        self.val.store(false, Relaxed);
-    }
-
-    pub fn active(&self) -> bool {
-        self.val.load(Relaxed)
+    pub fn inactive() -> Self {
+        Self { active: false, temp: 0 }
     }
 }
 
+#[derive(Debug)]
 pub struct StateMessage {
-    active: bool,
+    state: State,
 }
 
 impl StateMessage {
-    pub fn new(state: bool) -> Self {
-        Self { active: state }
+    pub fn new(state: State) -> Self {
+        Self { state }
     }
 }
 
 impl MqttMessage for StateMessage {
-    fn to_bytes(&self) -> &[u8] {
-        if self.active {
-            return "true".as_bytes();
-        }
-        "false".as_bytes()
+    fn to_string(&self) -> Result<String, anyhow::Error> {
+        Ok(serde_json::to_string(&self.state)?)
     }
 
     fn topic(&self) -> &str {
-        "/state/status"
+        "/state"
     }
 }

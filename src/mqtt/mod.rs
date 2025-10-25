@@ -103,13 +103,13 @@ impl Mqtt<'_> {
     }
 
     pub fn send_message<M: MqttMessage>(&mut self, m: M) -> Result<(), anyhow::Error> {
-        self.client.publish(m.topic(), QoS::AtLeastOnce, false, m.to_bytes())?;
+        self.client.publish(m.topic(), QoS::AtLeastOnce, false, m.to_string()?.as_bytes())?;
         Ok(())
     }
 }
 
 pub trait MqttMessage {
-    fn to_bytes(&self) -> &[u8];
+    fn to_string(&self) -> Result<String, anyhow::Error>;
 
     fn topic(&self) -> &str;
 }

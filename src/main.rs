@@ -7,7 +7,6 @@ mod wifi;
 mod dryer;
 mod mqtt;
 
-use std::sync::{mpmc, mpsc, Arc};
 use std::thread;
 use std::time::{Duration};
 use anyhow::Result;
@@ -31,6 +30,7 @@ use crate::dryer::{State, StateMessage};
 use crate::mqtt::{Mqtt, Command};
 use crate::time::limit::OnceIn;
 use crate::time::timer::SyncTimer;
+use crossbeam_channel::{unbounded};
 
 fn main() -> Result<()> {
     match start() {
@@ -44,10 +44,9 @@ fn main() -> Result<()> {
 
 fn start() -> Result<()> {
     let peripherals = Peripherals::take()?;
-    let (timers_tx, timers_rx) = mpsc::channel();
-    let (cancel_tx, cancel_rx) = mpmc::channel();
-    let dryer_state = Arc::new(State::new());
-    let state_copy = dryer_state.clone();
+    let (timers_tx, timers_rx) = unbounded();
+    let (cancel_tx, cancel_rx) = unbounded();
+    let (states_tx, states_rx) = unbounded();
     // Init WI-FI
     let sys_loop = EspSystemEventLoop::take()?;
     let wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), None)?;
@@ -63,7 +62,7 @@ fn start() -> Result<()> {
 
     let handles = vec![
         thread::spawn(move || {
-            let mut limiter = OnceIn::new(Duration::from_secs(300));
+            let mut state_limiter = OnceIn::new(Duration::from_secs(10));
             // Init MQTT
             let mut mqtt = Mqtt::new(mqtt::Credentials::new(
                 dotenv!("MQTT_CLIENT_ID").to_string(),
@@ -71,25 +70,29 @@ fn start() -> Result<()> {
                 dotenv!("MQTT_PASSWORD").to_string(),
                 dotenv!("MQTT_URL").to_string(),
             )).unwrap();
+
+            mqtt.send_message(StateMessage::new(State::inactive())).unwrap();
             mqtt.wait(|mqtt| {
-                let send_state = |mqtt: &mut Mqtt, state: bool| -> Result<(), anyhow::Error>{
+                let send_state = |mqtt: &mut Mqtt, state: State| -> Result<(), anyhow::Error>{
                     mqtt.send_message(StateMessage::new(state))
                 };
                 mqtt.on_command(|mqtt, msg| {
                     match msg {
                         Command::Start(d) => {
-                            send_state(mqtt, true)?;
+                            send_state(mqtt, State::active())?;
                             Ok(timers_tx.send(SyncTimer::new(cancel_rx.clone(), d))?)
                         },
                         Command::Stop => {
-                            send_state(mqtt, false)?;
+                            send_state(mqtt, State::inactive())?;
                             Ok(cancel_tx.send(true)?)
                         },
                     }
                 })?;
-                limiter.if_allow(|| {
-                    send_state(mqtt, state_copy.active())
-                })?;
+                if let Ok(state) = states_rx.try_recv() {
+                    state_limiter.if_allow(|| {
+                        send_state(mqtt, state)
+                    })?;
+                }
                 Ok(())
             }).unwrap();
         }),
@@ -121,10 +124,10 @@ fn start() -> Result<()> {
                 temp_sensor,
                 fan
             );
+
             for timer in timers_rx {
-                dryer_state.activate();
-                dryer.start(timer).unwrap();
-                dryer_state.inactivate();
+                dryer.start(timer, states_tx.clone()).unwrap();
+                states_tx.try_send(State::inactive()).unwrap();
                 dryer.stop().unwrap();
             }
         }),
