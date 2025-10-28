@@ -1,5 +1,3 @@
-#![feature(mpmc_channel)]
-
 #[macro_use]
 mod schedule;
 mod time;
@@ -17,19 +15,19 @@ use esp_idf_svc::wifi::EspWifi;
 use log::error;
 use onewire::OneWire;
 use dryer::sensor::temperature::DS18B20Sensor;
-use crate::wifi::{Connection, Credentials};
+use wifi::{Connection, Credentials};
 use dotenv_codegen::dotenv;
 use embedded_svc::wifi::AuthMethod;
 use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
-use crate::dryer::fan::Fan;
-use crate::dryer::heater::Heater;
-use crate::dryer::{State, StateMessage};
-use crate::mqtt::{Mqtt, Command};
-use crate::time::limit::OnceIn;
-use crate::time::timer::SyncTimer;
+use dryer::fan::Fan;
+use dryer::heater::Heater;
+use dryer::{State, StateMessage};
+use mqtt::{Mqtt, Command};
+use time::limit::OnceIn;
+use time::timer::SyncTimer;
 use crossbeam_channel::{unbounded};
 
 fn main() -> Result<()> {

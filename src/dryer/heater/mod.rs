@@ -87,8 +87,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                     }
                     state.try_send(State::new(true, value))?;
                 }
-                Err(e) => {
-                    println!("{}", e);
+                _ => {
                     failed_requests += 1;
                 }
             }
