@@ -1,12 +1,8 @@
+use crate::dryer::State;
+use crate::time::timer::SyncTimer;
 use anyhow::{anyhow, Error};
 use crossbeam_channel::Sender;
 use embedded_hal::digital::OutputPin;
-use crate::dryer::State;
-use crate::time::timer::SyncTimer;
-
-pub enum Err {
-    ContextCanceled,
-}
 
 pub trait TempSensor {
     fn read_celsius(&mut self) -> anyhow::Result<u16, Error>;
@@ -16,7 +12,7 @@ pub trait TempSensor {
 pub enum FanMode {
     Max,
     Middle,
-    Off
+    Off,
 }
 
 pub trait FanSpeedRegulator {
@@ -27,21 +23,27 @@ pub struct Heater<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> {
     power: P,
     sensor: S,
     fan: F,
-    target_temperature: u8
+    target_temperature: u8,
 }
 
 impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
     pub fn new(power: P, target_temperature: u8, sensor: S, fan: F) -> Self {
-        Heater { power, target_temperature, sensor, fan }
+        Heater {
+            power,
+            target_temperature,
+            sensor,
+            fan,
+        }
     }
 
     fn heat(&mut self) -> anyhow::Result<(), Error> {
-        self.power.set_high().map_err(|e| {anyhow!("power on: {:?}", e)})?;
+        self.power_on()?;
         self.fan.speed(FanMode::Off)?;
         Ok(())
     }
 
     fn dry(&mut self) -> anyhow::Result<(), Error> {
+        self.power_on()?;
         self.fan.speed(FanMode::Middle)?;
         Ok(())
     }
@@ -52,9 +54,16 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
         Ok(())
     }
 
+    fn power_on(&mut self) -> anyhow::Result<(), Error> {
+        self.power
+            .set_high()
+            .map_err(|e| anyhow!("power on: {:?}", e))
+    }
+
     fn power_off(&mut self) -> anyhow::Result<(), Error> {
-        self.power.set_low().map_err(|e| {anyhow!("power off: {:?}", e)})?;
-        Ok(())
+        self.power
+            .set_low()
+            .map_err(|e| anyhow!("power off: {:?}", e))
     }
 
     pub fn stop(&mut self) -> anyhow::Result<(), Error> {
@@ -62,11 +71,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
         self.fan.speed(FanMode::Off)
     }
 
-    pub fn start(
-        &mut self,
-        timer: SyncTimer,
-        state: Sender<State>
-    ) -> Result<(), Error> {
+    pub fn start(&mut self, timer: SyncTimer, state: Sender<State>) -> Result<(), Error> {
         let mut failed_requests = 0;
         timer.next_sec(|| {
             if failed_requests > 10 {
@@ -76,15 +81,15 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                 Ok(value) => {
                     failed_requests = 0;
                     let target = self.target_temperature as u16;
-                    let target_with_gap_up = target + 10;
-                    let target_with_gap_down = target - 10;
-                    if value < target {
+                    let min = target - 10;
+                    let max = target + 10;
+                    if value.lt(&min) {
                         self.heat()?;
                     }
-                    if value >= target_with_gap_down && value <= target_with_gap_up {
+                    if (min..max).contains(&value) {
                         self.dry()?;
                     }
-                    if value > target_with_gap_up {
+                    if value.gt(&max) {
                         self.cooling()?;
                     }
                     state.try_send(State::new(true, value))?;
