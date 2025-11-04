@@ -48,7 +48,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     fn cooling(&mut self) -> anyhow::Result<(), Error> {
         self.power_off()?;
-        self.fan.speed(FanMode::Off)?;
+        self.fan.speed(FanMode::Max)?;
         Ok(())
     }
 
@@ -58,7 +58,8 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
     }
 
     pub fn stop(&mut self) -> anyhow::Result<(), Error> {
-        self.power_off()
+        self.power_off()?;
+        self.fan.speed(FanMode::Off)
     }
 
     pub fn start(
@@ -76,6 +77,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                     failed_requests = 0;
                     let target = self.target_temperature as u16;
                     let target_with_gap = target + 10;
+                    println!("{} - {}", value, target);
                     if value < target {
                         self.heat()?;
                     }
