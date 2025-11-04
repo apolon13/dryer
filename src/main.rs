@@ -60,7 +60,6 @@ fn start() -> Result<()> {
 
     let handles = vec![
         thread::spawn(move || {
-            let mut state_limiter = OnceIn::new(Duration::from_secs(10));
             // Init MQTT
             let mut mqtt = Mqtt::new(mqtt::Credentials::new(
                 dotenv!("MQTT_CLIENT_ID").to_string(),
@@ -87,9 +86,7 @@ fn start() -> Result<()> {
                     }
                 })?;
                 if let Ok(state) = states_rx.try_recv() {
-                    state_limiter.if_allow(|| {
-                        send_state(mqtt, state)
-                    })?;
+                    send_state(mqtt, state)?
                 }
                 Ok(())
             }).unwrap();
