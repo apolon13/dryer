@@ -118,7 +118,7 @@ fn start() -> Result<()> {
             let power = PinDriver::output(peripherals.pins.gpio2).unwrap().into_output().unwrap();
             let mut dryer = Heater::new(
                 power,
-                dotenv!("TARGET_TEMPERATURE").parse::<u8>().unwrap(),
+                dotenv!("TARGET_TEMPERATURE").parse::<u16>().unwrap(),
                 temp_sensor,
                 fan
             );

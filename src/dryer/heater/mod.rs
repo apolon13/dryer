@@ -23,11 +23,11 @@ pub struct Heater<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> {
     power: P,
     sensor: S,
     fan: F,
-    target_temperature: u8,
+    target_temperature: u16,
 }
 
 impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
-    pub fn new(power: P, target_temperature: u8, sensor: S, fan: F) -> Self {
+    pub fn new(power: P, target_temperature: u16, sensor: S, fan: F) -> Self {
         Heater {
             power,
             target_temperature,
@@ -80,7 +80,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
             match self.sensor.read_celsius() {
                 Ok(value) => {
                     failed_requests = 0;
-                    let target = self.target_temperature as u16;
+                    let target = self.target_temperature;
                     let min = target - 10;
                     let max = target + 10;
                     if value.lt(&min) {
