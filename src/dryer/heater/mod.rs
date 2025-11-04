@@ -76,15 +76,15 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                 Ok(value) => {
                     failed_requests = 0;
                     let target = self.target_temperature as u16;
-                    let target_with_gap = target + 10;
-                    println!("{} - {}", value, target);
+                    let target_with_gap_up = target + 10;
+                    let target_with_gap_down = target - 10;
                     if value < target {
                         self.heat()?;
                     }
-                    if value >= target && value <= target_with_gap {
+                    if value >= target_with_gap_down && value <= target_with_gap_up {
                         self.dry()?;
                     }
-                    if value > target_with_gap {
+                    if value > target_with_gap_up {
                         self.cooling()?;
                     }
                     state.try_send(State::new(true, value))?;
