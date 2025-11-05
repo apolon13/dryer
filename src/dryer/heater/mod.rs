@@ -80,7 +80,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
             match self.sensor.read_celsius() {
                 Ok(value) => {
                     failed_requests = 0;
-                    let min = self.target_temperature - 10;
+                    let min = self.target_temperature;
                     let max = self.target_temperature + 10;
                     if value.lt(&min) {
                         println!("heat");

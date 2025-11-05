@@ -104,7 +104,6 @@ fn start() -> Result<()> {
                 timer_driver,
                 peripherals.pins.gpio4,
             ).unwrap();
-            let fan = Fan::new(pwm);
 
             //Init temperature sensor
             let mut pin_driver = PinDriver::output(peripherals.pins.gpio10).unwrap().into_input_output().unwrap();
@@ -117,7 +116,7 @@ fn start() -> Result<()> {
                 power,
                 dotenv!("TARGET_TEMPERATURE").parse::<u16>().unwrap(),
                 temp_sensor,
-                fan
+                Fan::new(pwm)
             );
 
             for timer in timers_rx {
