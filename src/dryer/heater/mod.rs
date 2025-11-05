@@ -38,13 +38,13 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     fn heat(&mut self) -> anyhow::Result<(), Error> {
         self.power_on()?;
-        self.fan.speed(FanMode::Off)?;
+        self.fan.speed(FanMode::Middle)?;
         Ok(())
     }
 
     fn dry(&mut self) -> anyhow::Result<(), Error> {
         self.power_on()?;
-        self.fan.speed(FanMode::Middle)?;
+        self.fan.speed(FanMode::Max)?;
         Ok(())
     }
 
@@ -74,7 +74,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
     pub fn start(&mut self, timer: SyncTimer, state: Sender<State>) -> Result<(), Error> {
         let mut failed_requests = 0;
         timer.next_sec(|| {
-            if failed_requests > 10 {
+            if failed_requests > 30 {
                 Err(anyhow!("too many failed temperature requests"))?
             }
             match self.sensor.read_celsius() {
@@ -83,12 +83,15 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                     let min = self.target_temperature - 10;
                     let max = self.target_temperature + 10;
                     if value.lt(&min) {
+                        println!("heat");
                         self.heat()?;
                     }
                     if (min..max).contains(&value) {
+                        println!("dry");
                         self.dry()?;
                     }
                     if value.gt(&max) {
+                        println!("cooling");
                         self.cooling()?;
                     }
                     state.try_send(State::new(true, value))?;

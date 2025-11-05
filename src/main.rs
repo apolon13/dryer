@@ -121,9 +121,12 @@ fn start() -> Result<()> {
             );
 
             for timer in timers_rx {
-                dryer.start(timer, states_tx.clone()).unwrap();
-                states_tx.try_send(State::inactive()).unwrap();
+                let res = dryer.start(timer, states_tx.clone());
                 dryer.stop().unwrap();
+                states_tx.try_send(State::inactive()).unwrap();
+                if res.is_err() {
+                    panic!("{:?}", res.err().unwrap());
+                }
             }
         }),
     ];
