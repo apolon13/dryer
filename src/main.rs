@@ -23,7 +23,7 @@ use esp_idf_hal::ledc::Resolution::Bits10;
 use esp_idf_hal::units::Hertz;
 use dryer::fan::Fan;
 use dryer::heater::Heater;
-use dryer::{State, StateMessage};
+use dryer::{State};
 use mqtt::{Mqtt, Command};
 use time::timer::SyncTimer;
 use crossbeam_channel::{unbounded};
@@ -66,10 +66,10 @@ fn start() -> Result<()> {
                 dotenv!("MQTT_URL").to_string(),
             )).unwrap();
 
-            mqtt.send_message(StateMessage::new(State::inactive())).unwrap();
+            mqtt.send_message(State::inactive()).unwrap();
             mqtt.wait(|mqtt| {
                 let send_state = |mqtt: &mut Mqtt, state: State| -> Result<(), anyhow::Error>{
-                    mqtt.send_message(StateMessage::new(state))
+                    mqtt.send_message(state)
                 };
                 mqtt.on_command(|mqtt, msg| {
                     match msg {

@@ -26,20 +26,9 @@ impl State {
     }
 }
 
-#[derive(Debug)]
-pub struct StateMessage {
-    state: State,
-}
-
-impl StateMessage {
-    pub fn new(state: State) -> Self {
-        Self { state }
-    }
-}
-
-impl MqttMessage for StateMessage {
+impl MqttMessage for State {
     fn to_string(&self) -> Result<String, anyhow::Error> {
-        Ok(serde_json::to_string(&self.state)?)
+        Ok(serde_json::to_string(&self)?)
     }
 
     fn topic(&self) -> &str {
