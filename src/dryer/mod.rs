@@ -5,23 +5,24 @@ pub mod sensor;
 pub mod fan;
 pub mod heater;
 
-#[derive(Debug, Serialize, Copy, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct State {
     active: bool,
-    temp: u16
+    temp: u16,
+    action: String,
 }
 
 impl State {
-    pub fn new(active: bool, temp: u16) -> Self {
-        Self { active, temp }
+    pub fn new(active: bool, temp: u16, action: String) -> Self {
+        Self { active, temp, action }
     }
 
     pub fn active() -> Self {
-        Self { active: true, temp: 0 }
+        Self { active: true, temp: 0, action: String::new() }
     }
 
     pub fn inactive() -> Self {
-        Self { active: false, temp: 0 }
+        Self { active: false, temp: 0, action: String::new() }
     }
 }
 

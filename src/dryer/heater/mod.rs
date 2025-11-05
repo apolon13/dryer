@@ -79,22 +79,23 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
             }
             match self.sensor.read_celsius() {
                 Ok(value) => {
+                    let mut action = "";
                     failed_requests = 0;
                     let min = self.target_temperature;
                     let max = self.target_temperature + 10;
                     if value.lt(&min) {
-                        println!("heat");
+                        action = "heat";
                         self.heat()?;
                     }
                     if (min..max).contains(&value) {
-                        println!("dry");
+                        action = "dry";
                         self.dry()?;
                     }
                     if value.gt(&max) {
-                        println!("cooling");
+                        action = "cooling";
                         self.cooling()?;
                     }
-                    state.try_send(State::new(true, value))?;
+                    state.try_send(State::new(true, value, action.to_string()))?;
                 }
                 _ => {
                     failed_requests += 1;

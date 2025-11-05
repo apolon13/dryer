@@ -6,7 +6,6 @@ mod dryer;
 mod mqtt;
 
 use std::thread;
-use std::time::{Duration};
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::gpio::PinDriver;
@@ -26,7 +25,6 @@ use dryer::fan::Fan;
 use dryer::heater::Heater;
 use dryer::{State, StateMessage};
 use mqtt::{Mqtt, Command};
-use time::limit::OnceIn;
 use time::timer::SyncTimer;
 use crossbeam_channel::{unbounded};
 
