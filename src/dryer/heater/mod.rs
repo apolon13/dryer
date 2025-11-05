@@ -9,14 +9,14 @@ pub trait TempSensor {
 }
 
 #[derive(PartialEq)]
-pub enum FanMode {
+pub enum FanSpeed {
     Max,
     Middle,
     Off,
 }
 
 pub trait FanSpeedRegulator {
-    fn speed(&mut self, mode: FanMode) -> anyhow::Result<(), Error>;
+    fn speed(&mut self, speed: FanSpeed) -> anyhow::Result<(), Error>;
 }
 
 pub struct Heater<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> {
@@ -38,19 +38,19 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     fn heat(&mut self) -> anyhow::Result<(), Error> {
         self.power_on()?;
-        self.fan.speed(FanMode::Middle)?;
+        self.fan.speed(FanSpeed::Middle)?;
         Ok(())
     }
 
     fn dry(&mut self) -> anyhow::Result<(), Error> {
         self.power_on()?;
-        self.fan.speed(FanMode::Max)?;
+        self.fan.speed(FanSpeed::Max)?;
         Ok(())
     }
 
     fn cooling(&mut self) -> anyhow::Result<(), Error> {
         self.power_off()?;
-        self.fan.speed(FanMode::Max)?;
+        self.fan.speed(FanSpeed::Max)?;
         Ok(())
     }
 
@@ -68,7 +68,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     pub fn stop(&mut self) -> anyhow::Result<(), Error> {
         self.power_off()?;
-        self.fan.speed(FanMode::Off)
+        self.fan.speed(FanSpeed::Off)
     }
 
     pub fn start(&mut self, timer: SyncTimer, state: Sender<State>) -> Result<(), Error> {

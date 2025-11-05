@@ -1,4 +1,4 @@
-use crate::dryer::heater::{FanMode, FanSpeedRegulator};
+use crate::dryer::heater::{FanSpeed, FanSpeedRegulator};
 use anyhow::Error;
 use esp_idf_hal::ledc::LedcDriver;
 
@@ -13,12 +13,12 @@ impl<'a> Fan<'a> {
 }
 
 impl<'a> FanSpeedRegulator for Fan<'a> {
-    fn speed(&mut self, mode: FanMode) -> Result<(), Error> {
+    fn speed(&mut self, speed: FanSpeed) -> Result<(), Error> {
         let max = self.pwm.get_max_duty();
-        self.pwm.set_duty(match mode {
-            FanMode::Middle => (max as f64 * (1.0 - 30.0 / 100.0)) as u32,
-            FanMode::Max => max,
-            FanMode::Off => 0,
+        self.pwm.set_duty(match speed {
+            FanSpeed::Middle => (max as f64 * (1.0 - 30.0 / 100.0)) as u32,
+            FanSpeed::Max => max,
+            FanSpeed::Off => 0,
         })?;
         Ok(())
     }
