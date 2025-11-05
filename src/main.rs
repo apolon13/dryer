@@ -107,7 +107,7 @@ fn start() -> Result<()> {
             let fan = Fan::new(pwm);
 
             //Init temperature sensor
-            let mut pin_driver = PinDriver::output(peripherals.pins.gpio6).unwrap().into_input_output().unwrap();
+            let mut pin_driver = PinDriver::output(peripherals.pins.gpio10).unwrap().into_input_output().unwrap();
             let wire = OneWire::new(&mut pin_driver, false);
             let temp_sensor = DS18B20Sensor::new(wire, 100).unwrap();
 
