@@ -5,7 +5,7 @@ pub mod sensor;
 pub mod fan;
 pub mod heater;
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize)]
 pub struct State {
     active: bool,
     temp: u16,
