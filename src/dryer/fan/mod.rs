@@ -16,7 +16,7 @@ impl<'a> FanSpeedRegulator for Fan<'a> {
     fn speed(&mut self, speed: FanSpeed) -> Result<(), Error> {
         let max = self.pwm.get_max_duty();
         self.pwm.set_duty(match speed {
-            FanSpeed::Middle => (max as f64 * (1.0 - 30.0 / 100.0)) as u32,
+            FanSpeed::Middle => (max as f64 * (1.0 - 50.0 / 100.0)) as u32,
             FanSpeed::Max => max,
             FanSpeed::Off => 0,
         })?;
