@@ -10,8 +10,9 @@ pub trait TempSensor {
 
 #[derive(PartialEq)]
 pub enum FanSpeed {
-    Max,
     Middle,
+    Max,
+    Low,
     Off,
 }
 
@@ -38,13 +39,13 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     fn heat(&mut self) -> anyhow::Result<(), Error> {
         self.power_on()?;
-        self.fan.speed(FanSpeed::Middle)?;
+        self.fan.speed(FanSpeed::Low)?;
         Ok(())
     }
 
     fn dry(&mut self) -> anyhow::Result<(), Error> {
         self.power_on()?;
-        self.fan.speed(FanSpeed::Max)?;
+        self.fan.speed(FanSpeed::Middle)?;
         Ok(())
     }
 
@@ -73,6 +74,7 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
 
     pub fn start(&mut self, timer: SyncTimer, state: Sender<State>) -> Result<(), Error> {
         let mut failed_requests = 0;
+        let mut target_reached = false;
         timer.next_sec(|| {
             if failed_requests > 30 {
                 Err(anyhow!("too many failed temperature requests"))?
@@ -81,17 +83,23 @@ impl<P: OutputPin, S: TempSensor, F: FanSpeedRegulator> Heater<P, S, F> {
                 Ok(value) => {
                     let mut action = "";
                     failed_requests = 0;
-                    let min = self.target_temperature;
+                    let target = self.target_temperature;
+                    let min = target - 5;
                     let max = self.target_temperature + 10;
-                    if value.lt(&min) {
+                    if target_reached && value.lt(&min) {
+                        target_reached = false;
+                    }
+                    if value.lt(&target) && !target_reached {
                         action = "heat";
                         self.heat()?;
                     }
-                    if (min..max).contains(&value) {
+                    if (target..max).contains(&value) || target_reached {
+                        target_reached = true;
                         action = "dry";
                         self.dry()?;
                     }
                     if value.gt(&max) {
+                        target_reached = false;
                         action = "cooling";
                         self.cooling()?;
                     }
