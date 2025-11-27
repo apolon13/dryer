@@ -17,10 +17,10 @@ impl<'a> FanSpeedRegulator for Fan<'a> {
         let max = self.pwm.get_max_duty();
         self.pwm.set_duty(match speed {
             FanSpeed::Low => {
-                (max as f64 * 10.0 / 100.0) as u32
+                (max as f64 * 30.0 / 100.0) as u32
             },
             FanSpeed::Middle => {
-                (max as f64 * 70.0 / 100.0) as u32
+                (max as f64 * 50.0 / 100.0) as u32
             },
             FanSpeed::Max => max,
             FanSpeed::Off => 0,
